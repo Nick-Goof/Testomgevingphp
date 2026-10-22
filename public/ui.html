@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PHP API Testomgeving</title>
+<style>
+  :root { --bg:#f5f6f8; --card:#fff; --text:#1d2330; --muted:#6b7280; --border:#dde1e7; --accent:#4f5bd5; --ok:#15803d; --warn:#b45309; --err:#b91c1c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161b; --card:#1d2027; --text:#e6e8ec; --muted:#9aa1ad; --border:#2e333d; --accent:#8b93f0; --ok:#4ade80; --warn:#fbbf24; --err:#f87171; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:1000px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:1.4rem; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  select, input, textarea, button { font:inherit; color:inherit; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:8px 10px; }
+  input#url { flex:1; min-width:200px; font-family:ui-monospace, monospace; }
+  textarea { width:100%; font-family:ui-monospace, monospace; font-size:13px; resize:vertical; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); cursor:pointer; font-weight:600; padding:8px 20px; }
+  .presets button { cursor:pointer; font-size:13px; padding:4px 10px; }
+  label { display:block; font-size:13px; color:var(--muted); margin:12px 0 4px; }
+  .grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+  @media (max-width:700px) { .grid { grid-template-columns:minmax(0,1fr); } }
+  pre { margin:0; padding:12px; background:var(--bg); border:1px solid var(--border); border-radius:6px; overflow:auto; font-size:13px; max-height:420px; }
+  .meta { display:flex; gap:16px; margin-bottom:10px; font-size:14px; }
+  .s2 { color:var(--ok); } .s3,.s4 { color:var(--warn); } .s5,.s0 { color:var(--err); }
+  .m { font-family:ui-monospace, monospace; font-weight:700; font-size:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PHP API Testomgeving</h1>
+  <p class="sub">Stuur GET, POST, PUT, PATCH, DELETE, HEAD en OPTIONS requests naar de ingebouwde test-API.</p>
+
+  <div class="card">
+    <div class="presets row" id="presets"></div>
+  </div>
+
+  <form class="card" id="form">
+    <div class="row">
+      <select id="method">
+        <option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option>
+        <option>DELETE</option><option>HEAD</option><option>OPTIONS</option>
+      </select>
+      <input id="url" value="/api/items" spellcheck="false">
+      <button class="primary" type="submit">Verstuur</button>
+    </div>
+    <div class="grid">
+      <div>
+        <label for="headers">Headers (één per regel, <code>Naam: waarde</code>)</label>
+        <textarea id="headers" rows="6">Content-Type: application/json
+Accept: application/json</textarea>
+      </div>
+      <div>
+        <label for="body">Body</label>
+        <textarea id="body" rows="6">{
+  "name": "Nieuw item",
+  "done": false
+}</textarea>
+      </div>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="meta" id="meta"><span style="color:var(--muted)">Nog geen request verstuurd.</span></div>
+    <div class="grid">
+      <div><label>Response body</label><pre id="resBody">—</pre></div>
+      <div><label>Response headers</label><pre id="resHeaders">—</pre></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const presets = [
+  ['GET', '/api', null],
+  ['GET', '/api/items', null],
+  ['GET', '/api/items?done=true', null],
+  ['GET', '/api/items/1', null],
+  ['POST', '/api/items', { name: 'Nieuw item', done: false }],
+  ['PUT', '/api/items/1', { name: 'Vervangen item', done: true }],
+  ['PATCH', '/api/items/1', { done: false }],
+  ['DELETE', '/api/items/2', null],
+  ['POST', '/api/echo?foo=bar', { hallo: 'wereld' }],
+  ['GET', '/api/status/418', null],
+  ['POST', '/api/reset', null],
+];
+
+for (const [method, url, body] of presets) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.innerHTML = `<span class="m">${method}</span> ${url}`;
+  b.onclick = () => {
+    $('method').value = method;
+    $('url').value = url;
+    $('body').value = body ? JSON.stringify(body, null, 2) : '';
+    send();
+  };
+  $('presets').append(b);
+}
+
+$('form').addEventListener('submit', (e) => { e.preventDefault(); send(); });
+
+async function send() {
+  const method = $('method').value;
+  const headers = {};
+  for (const line of $('headers').value.split('\n')) {
+    const i = line.indexOf(':');
+    if (i > 0) headers[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  const opts = { method, headers };
+  if (!['GET', 'HEAD'].includes(method) && $('body').value.trim() !== '') opts.body = $('body').value;
+
+  const start = performance.now();
+  try {
+    const res = await fetch($('url').value, opts);
+    const ms = Math.round(performance.now() - start);
+    const text = await res.text();
+    let pretty = text;
+    try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+
+    $('meta').innerHTML = `<strong class="s${String(res.status)[0]}">${res.status} ${res.statusText}</strong>
+      <span>${ms} ms</span><span>${new Blob([text]).size} bytes</span>`;
+    $('resBody').textContent = pretty || '(lege body)';
+    $('resHeaders').textContent = [...res.headers].map(([k, v]) => `${k}: ${v}`).join('\n');
+  } catch (err) {
+    $('meta').innerHTML = `<strong class="s0">Fout</strong><span>${err.message}</span>`;
+    $('resBody').textContent = '—';
+    $('resHeaders').textContent = '—';
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+    "name": "nickgovaarts/php-api-testomgeving",
+    "description": "Kleine PoC-testomgeving voor HTTP-requests (GET, POST, PUT, PATCH, DELETE)",
+    "type": "project",
+    "require": {
+        "php": "~8.4.2"
+    },
+    "autoload": {
+        "psr-4": { "App\\": "src/" }
+    }
+}
